@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Les arbres de Paris — carte par arrondissement</title>
+<!-- Mode "app" une fois ajoutée à l'écran d'accueil iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Arbres Paris">
+<meta name="theme-color" content="#f5f8f4">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<style>
+  :root {
+    --bg: #f5f8f4;
+    --panel: #ffffff;
+    --ink: #1d3a2a;
+    --ink-soft: #5f7a6a;
+    --line: #dce6dd;
+    --feuille: #2f8f4e;
+    --remarquable: #d98e04;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+
+  header { margin-bottom: 20px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-soft); font-weight: 600; margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 700; line-height: 1.15;
+  }
+  .subtitle { color: var(--ink-soft); font-size: 14px; margin-top: 6px; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 18px 0;
+  }
+  .toolbar label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  select {
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+    color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 12px; min-width: 220px; cursor: pointer;
+  }
+  select:focus-visible { outline: 2px solid var(--feuille); outline-offset: 2px; }
+  input[type="date"] {
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+    color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px;
+  }
+  input[type="date"]:focus-visible { outline: 2px solid var(--feuille); outline-offset: 2px; }
+  button.reset {
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  }
+  button.reset:hover { border-color: var(--ink-soft); }
+  button.reset:focus-visible { outline: 2px solid var(--feuille); outline-offset: 2px; }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .stat .label { font-size: 12px; color: var(--ink-soft); font-weight: 500; margin-bottom: 5px; }
+  .stat .value {
+    font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .detail { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+
+  .map-panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px;
+  }
+  #map { height: 560px; border-radius: 8px; }
+  @media (max-width: 640px) {
+    body {
+      padding: 12px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+      padding-top: max(12px, env(safe-area-inset-top));
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+    header { margin-bottom: 12px; }
+    .subtitle { font-size: 13px; }
+
+    .toolbar { gap: 8px; margin: 12px 0; }
+    .toolbar label { flex-basis: auto; }
+    select { flex: 1 1 100%; min-width: 0; }
+    .toolbar input[type="date"] { flex: 1; }
+    /* 16px minimum : en dessous, iOS zoome automatiquement sur le champ */
+    select, input[type="date"] { font-size: 16px; padding: 11px 12px; }
+    button.reset { font-size: 15px; padding: 11px 14px; }
+    label.check { padding: 4px 0; }
+    label.check input { width: 18px; height: 18px; }
+
+    .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+    .stat { padding: 11px 12px; }
+    .stat .value { font-size: 19px; }
+    .stat .value[style] { font-size: 15px !important; }
+    .stat .label, .stat .detail { font-size: 11px; }
+
+    .map-panel { padding: 10px; }
+    /* La carte occupe l'essentiel de l'écran ; dvh suit la barre Safari */
+    #map { height: 58vh; height: 58dvh; min-height: 340px; }
+    .legend { gap: 10px; flex-wrap: wrap; font-size: 11px; }
+    .status { font-size: 12px; }
+  }
+
+  .legend { display: flex; gap: 18px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--ink-soft); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .dot.arbre { background: var(--feuille); }
+  .dot.rem { background: var(--remarquable); }
+  .trait { display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 3px; }
+  .trait.vert { background: #2f8f4e; }
+  .trait.rouge { background: #c23a3a; }
+  label.check {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+  }
+  label.check input { accent-color: var(--feuille); width: 15px; height: 15px; cursor: pointer; }
+
+  .status { font-size: 13px; color: var(--ink-soft); margin-top: 12px; }
+  .status.error { color: #c23a3a; font-weight: 500; }
+  footer { margin-top: 18px; font-size: 12px; color: var(--ink-soft); }
+
+  .popup-titre { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .popup-ligne { font-size: 12.5px; color: #33513f; }
+  .popup-rem { color: var(--remarquable); font-weight: 600; font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Ville de Paris · Direction des Espaces Verts et de l'Environnement</div>
+    <h1>Les arbres de Paris, arrondissement par arrondissement</h1>
+    <div class="subtitle">Arbres d'alignement, d'espaces verts et d'équipements municipaux. Cliquez sur un arbre pour ses caractéristiques.</div>
+  </header>
+
+  <div class="toolbar">
+    <label for="arrdt-select">Arrondissement</label>
+    <select id="arrdt-select"></select>
+    <label for="date-plantation">Plantés depuis le</label>
+    <input type="date" id="date-plantation">
+    <button type="button" id="btn-reset-date" class="reset" title="Afficher tous les arbres">Tout afficher</button>
+    <label class="check"><input type="checkbox" id="chk-rues"> Colorer les rues selon la présence d'arbres</label>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Arbres recensés</div>
+      <div class="value" id="stat-total">—</div>
+      <div class="detail" id="stat-total-detail">choisissez un arrondissement</div>
+    </div>
+    <div class="stat">
+      <div class="label">Essence la plus fréquente</div>
+      <div class="value" id="stat-essence" style="font-size:19px;">—</div>
+      <div class="detail" id="stat-essence-detail">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Arbre le plus haut</div>
+      <div class="value" id="stat-haut">—</div>
+      <div class="detail" id="stat-haut-detail">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Arbres remarquables</div>
+      <div class="value" id="stat-rem">—</div>
+      <div class="detail">classés par la Ville de Paris</div>
+    </div>
+  </div>
+
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="legend">
+      <span><span class="dot arbre"></span>Arbre</span>
+      <span><span class="dot rem"></span>Arbre remarquable</span>
+      <span><span class="trait vert"></span>Rue avec arbres à proximité</span>
+      <span><span class="trait rouge"></span>Rue sans arbre municipal recensé</span>
+    </div>
+    <div class="status" id="status">Choisissez un arrondissement pour charger les arbres.</div>
+  </div>
+
+  <footer>
+    Source : jeu de données <em>les-arbres</em>, Paris Data (opendata.paris.fr), licence ODbL.
+    Donnée mise à jour chaque semaine, non exhaustive (domaine municipal uniquement).
+    Fond de carte © OpenStreetMap.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  const API_ROOT = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/";
+  const DATASET_ARBRES = "les-arbres"; // inventaire complet, mais sans date de plantation
+  const DATASET_PLANTES = "arbres-plantes-hors-peuplement-forestier"; // plantations depuis nov. 2021, datées
+  const DATASET_VOIES = "troncon_voie"; // axes des voies publiques et privées
+
+  const CODE_TOUS = "TOUS";
+  const ARRONDISSEMENTS = [
+    [CODE_TOUS, "Tout Paris (~210 000 arbres, chargement long)"],
+    ["PARIS 1ER ARRDT", "1er arrondissement"],
+    ["PARIS 2E ARRDT", "2e arrondissement"],
+    ["PARIS 3E ARRDT", "3e arrondissement"],
+    ["PARIS 4E ARRDT", "4e arrondissement"],
+    ["PARIS 5E ARRDT", "5e arrondissement"],
+    ["PARIS 6E ARRDT", "6e arrondissement"],
+    ["PARIS 7E ARRDT", "7e arrondissement"],
+    ["PARIS 8E ARRDT", "8e arrondissement"],
+    ["PARIS 9E ARRDT", "9e arrondissement"],
+    ["PARIS 10E ARRDT", "10e arrondissement"],
+    ["PARIS 11E ARRDT", "11e arrondissement"],
+    ["PARIS 12E ARRDT", "12e arrondissement"],
+    ["PARIS 13E ARRDT", "13e arrondissement"],
+    ["PARIS 14E ARRDT", "14e arrondissement"],
+    ["PARIS 15E ARRDT", "15e arrondissement"],
+    ["PARIS 16E ARRDT", "16e arrondissement"],
+    ["PARIS 17E ARRDT", "17e arrondissement"],
+    ["PARIS 18E ARRDT", "18e arrondissement"],
+    ["PARIS 19E ARRDT", "19e arrondissement"],
+    ["PARIS 20E ARRDT", "20e arrondissement"],
+    ["BOIS DE BOULOGNE", "Bois de Boulogne"],
+    ["BOIS DE VINCENNES", "Bois de Vincennes"]
+  ];
+
+  // Carte
+  const map = L.map("map", { preferCanvas: true }).setView([48.8566, 2.3522], 12);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+
+  let cluster = null;
+
+  // Pane dédié pour que les rues se dessinent sous les arbres
+  map.createPane("rues");
+  map.getPane("rues").style.zIndex = 350;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function popupHtml(p) {
+    const nom = p.libellefrancais || "Essence non renseignée";
+    const bota = [p.genre, p.espece].filter(Boolean).join(" ");
+    const lignes = [];
+    if (bota) lignes.push("<div class='popup-ligne'><em>" + esc(bota) + "</em></div>");
+    if (p.hauteurenm) lignes.push("<div class='popup-ligne'>Hauteur : " + esc(p.hauteurenm) + " m</div>");
+    if (p.circonferenceencm) lignes.push("<div class='popup-ligne'>Circonférence : " + esc(p.circonferenceencm) + " cm</div>");
+    if (p.adresse) lignes.push("<div class='popup-ligne'>" + esc(p.adresse) + "</div>");
+    if (p.dateplantation) {
+      const d = new Date(p.dateplantation);
+      // Les dates antérieures à 1900 sont des valeurs par défaut ("date inconnue")
+      if (!isNaN(d) && d.getFullYear() > 1900) {
+        lignes.push("<div class='popup-ligne'>Planté le " + d.toLocaleDateString("fr-FR") + "</div>");
+      }
+    }
+    const rem = (p.remarquable === "OUI")
+      ? "<div class='popup-rem'>★ Arbre remarquable</div>" : "";
+    return "<div class='popup-titre'>" + esc(nom) + "</div>" + lignes.join("") + rem;
+  }
+
+  function majStats(features) {
+    const total = features.length;
+    document.getElementById("stat-total").textContent = total.toLocaleString("fr-FR");
+    document.getElementById("stat-total-detail").textContent = "affichés sur la carte";
+
+    // Essence dominante
+    const compte = {};
+    for (const f of features) {
+      const e = f.properties.libellefrancais;
+      if (e) compte[e] = (compte[e] || 0) + 1;
+    }
+    const top = Object.entries(compte).sort((a, b) => b[1] - a[1])[0];
+    if (top) {
+      document.getElementById("stat-essence").textContent = top[0];
+      document.getElementById("stat-essence-detail").textContent =
+        top[1].toLocaleString("fr-FR") + " arbres (" + (100 * top[1] / total).toFixed(0) + " %)";
+    } else {
+      document.getElementById("stat-essence").textContent = "—";
+      document.getElementById("stat-essence-detail").textContent = "—";
+    }
+
+    // Plus haut
+    let haut = null;
+    for (const f of features) {
+      const h = Number(f.properties.hauteurenm);
+      if (h > 0 && h < 100 && (!haut || h > Number(haut.properties.hauteurenm))) haut = f;
+    }
+    if (haut) {
+      document.getElementById("stat-haut").textContent = haut.properties.hauteurenm + " m";
+      document.getElementById("stat-haut-detail").textContent =
+        (haut.properties.libellefrancais || "essence inconnue") +
+        (haut.properties.adresse ? " — " + haut.properties.adresse : "");
+    } else {
+      document.getElementById("stat-haut").textContent = "—";
+      document.getElementById("stat-haut-detail").textContent = "hauteur non renseignée";
+    }
+
+    // Remarquables
+    const nbRem = features.filter(f => f.properties.remarquable === "OUI").length;
+    document.getElementById("stat-rem").textContent = nbRem.toLocaleString("fr-FR");
+  }
+
+  function afficherArbres(geojson) {
+    if (cluster) { map.removeLayer(cluster); cluster = null; }
+
+    cluster = L.markerClusterGroup({
+      chunkedLoading: true,           // ajout progressif, l'interface reste fluide
+      disableClusteringAtZoom: 18,
+      maxClusterRadius: 60
+    });
+
+    for (const f of geojson.features) {
+      if (!f.geometry || f.geometry.type !== "Point") continue;
+      const [lon, lat] = f.geometry.coordinates;
+      const remarquable = f.properties.remarquable === "OUI";
+      const m = L.circleMarker([lat, lon], {
+        radius: remarquable ? 8 : 5,
+        color: remarquable ? "#d98e04" : "#2f8f4e",
+        weight: remarquable ? 2 : 1,
+        fillColor: remarquable ? "#f2b33d" : "#4fae6d",
+        fillOpacity: 0.75
+      });
+      m.bindPopup(popupHtml(f.properties));
+      cluster.addLayer(m);
+    }
+    map.addLayer(cluster);
+
+    const bounds = cluster.getBounds();
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+  }
+
+  // --- Découverte du schéma du jeu "arbres plantés" ---------------------
+  // Les noms de champs de ce jeu de données ne sont pas garantis identiques
+  // à ceux de "les-arbres". On lit un enregistrement échantillon pour
+  // identifier les champs réels, une seule fois par session.
+  let schemaPlantes = null;
+
+  function trouverChamp(cles, ...motifs) {
+    for (const motif of motifs) {
+      const c = cles.find(k => k.toLowerCase().includes(motif));
+      if (c) return c;
+    }
+    return null;
+  }
+
+  async function decouvrirSchemaPlantes() {
+    if (schemaPlantes) return schemaPlantes;
+    const resp = await fetch(API_ROOT + DATASET_PLANTES + "/records?limit=1");
+    if (!resp.ok) throw new Error("échantillon du jeu plantations : réponse " + resp.status);
+    const json = await resp.json();
+    const rec = (json.results && json.results[0]) || {};
+    const cles = Object.keys(rec);
+
+    const clesDates = cles.filter(k => {
+      const v = rec[k];
+      return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
+    });
+    const champDate =
+      trouverChamp(clesDates, "plant") || clesDates[0] ||
+      trouverChamp(cles, "plant", "date");
+
+    schemaPlantes = {
+      date: champDate,
+      arrondissement: trouverChamp(cles, "arrondissement", "arrdt"),
+      exempleArrdt: null,
+      essence: trouverChamp(cles, "libelle", "essence"),
+      genre: trouverChamp(cles, "genre"),
+      espece: trouverChamp(cles, "espece"),
+      hauteur: trouverChamp(cles, "hauteur"),
+      circonference: trouverChamp(cles, "circonference"),
+      adresse: trouverChamp(cles, "adresse")
+    };
+    if (schemaPlantes.arrondissement) {
+      schemaPlantes.exempleArrdt = rec[schemaPlantes.arrondissement];
+    }
+    return schemaPlantes;
+  }
+
+  // Remet les propriétés du jeu "arbres plantés" dans le vocabulaire
+  // attendu par le reste de la page (popups, statistiques).
+  function normaliser(features, s) {
+    for (const f of features) {
+      const p = f.properties || {};
+      f.properties = {
+        libellefrancais: s.essence ? p[s.essence] : null,
+        genre: s.genre ? p[s.genre] : null,
+        espece: s.espece ? p[s.espece] : null,
+        hauteurenm: s.hauteur ? p[s.hauteur] : null,
+        circonferenceencm: s.circonference ? p[s.circonference] : null,
+        adresse: s.adresse ? p[s.adresse] : null,
+        dateplantation: s.date ? p[s.date] : null,
+        remarquable: null
+      };
+    }
+    return features;
+  }
+
+  // Adapte notre code d'arrondissement ("PARIS 12E ARRDT") au format
+  // effectivement utilisé par le jeu des plantations.
+  function adapterArrdt(code, exemple) {
+    if (typeof exemple === "string" && exemple.toUpperCase().startsWith("PARIS")) {
+      return code; // même convention que les-arbres
+    }
+    const m = code.match(/(\d+)/); // "PARIS 12E ARRDT" -> "12"
+    if (!m) return null; // bois de Boulogne/Vincennes : hors périmètre de ce jeu
+    if (typeof exemple === "number") return Number(m[1]);
+    return m[1];
+  }
+
+  // --- Coloration des rues selon la présence d'arbres ---------------------
+  let ruesLayer = null;
+  let champGeoVoies = null;
+  let dernierArbres = null; // arbres actuellement affichés
+
+  async function decouvrirChampGeoVoies() {
+    if (champGeoVoies) return champGeoVoies;
+    const resp = await fetch(API_ROOT + DATASET_VOIES + "/records?limit=1");
+    if (!resp.ok) throw new Error("échantillon du jeu des voies : réponse " + resp.status);
+    const json = await resp.json();
+    const rec = (json.results && json.results[0]) || {};
+    for (const [k, v] of Object.entries(rec)) {
+      if (v && typeof v === "object" && typeof v.type === "string") { champGeoVoies = k; break; }
+    }
+    if (!champGeoVoies) champGeoVoies = "geo_shape"; // nom le plus courant sur Opendatasoft
+    return champGeoVoies;
+  }
+
+  function segmentsDeLaGeometrie(geom) {
+    if (!geom) return [];
+    if (geom.type === "LineString") return [geom.coordinates];
+    if (geom.type === "MultiLineString") return geom.coordinates;
+    if (geom.type === "Feature") return segmentsDeLaGeometrie(geom.geometry);
+    return [];
+  }
+
+  // Classe chaque tronçon : __arbres = true s'il existe au moins un arbre
+  // à moins de D mètres de son axe. Index spatial en grille pour rester
+  // rapide avec des dizaines de milliers de points.
+  function classerRues(rues, arbres) {
+    const D = 18; // distance max arbre <-> axe de la rue, en mètres
+    const lat0 = map.getCenter().lat * Math.PI / 180;
+    const kx = 111320 * Math.cos(lat0), ky = 110540; // degrés -> mètres (approx. locale)
+    const d2 = D * D;
+
+    const grille = new Map();
+    for (const f of arbres) {
+      if (!f.geometry || f.geometry.type !== "Point") continue;
+      const x = f.geometry.coordinates[0] * kx, y = f.geometry.coordinates[1] * ky;
+      const cle = Math.floor(x / D) + "_" + Math.floor(y / D);
+      if (!grille.has(cle)) grille.set(cle, []);
+      grille.get(cle).push([x, y]);
+    }
+
+    function arbreProche(x, y) {
+      const ix = Math.floor(x / D), iy = Math.floor(y / D);
+      for (let a = ix - 1; a <= ix + 1; a++) {
+        for (let b = iy - 1; b <= iy + 1; b++) {
+          const pts = grille.get(a + "_" + b);
+          if (!pts) continue;
+          for (const p of pts) {
+            const dx = p[0] - x, dy = p[1] - y;
+            if (dx * dx + dy * dy <= d2) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    for (const f of rues.features || []) {
+      let trouve = false;
+      for (const ligne of segmentsDeLaGeometrie(f.geometry)) {
+        for (let i = 0; i < ligne.length - 1 && !trouve; i++) {
+          const x1 = ligne[i][0] * kx, y1 = ligne[i][1] * ky;
+          const x2 = ligne[i + 1][0] * kx, y2 = ligne[i + 1][1] * ky;
+          const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / (D * 0.8)));
+          for (let s = 0; s <= n; s++) {
+            if (arbreProche(x1 + (x2 - x1) * s / n, y1 + (y2 - y1) * s / n)) { trouve = true; break; }
+          }
+        }
+        if (trouve) break;
+      }
+      f.properties = f.properties || {};
+      f.properties.__arbres = trouve;
+    }
+  }
+
+  function retirerRues() {
+    if (ruesLayer) { map.removeLayer(ruesLayer); ruesLayer = null; }
+  }
+
+  async function majRues() {
+    if (!dernierArbres || !cluster) return;
+    const status = document.getElementById("status");
+    const texteAvant = status.textContent;
+    status.textContent = "Analyse de la végétalisation des rues…";
+    try {
+      const geoField = await decouvrirChampGeoVoies();
+      const b = cluster.getBounds();
+      const where = "in_bbox(`" + geoField + "`, " +
+        b.getSouth() + ", " + b.getWest() + ", " + b.getNorth() + ", " + b.getEast() + ")";
+      const params = new URLSearchParams({ where: where, limit: "-1" });
+      const resp = await fetch(API_ROOT + DATASET_VOIES + "/exports/geojson?" + params.toString());
+      if (!resp.ok) {
+        let detail = "";
+        try { const err = await resp.json(); detail = err.message || err.error || ""; } catch (e) {}
+        throw new Error("Réponse API " + resp.status + (detail ? " — " + detail : ""));
+      }
+      const rues = await resp.json();
+      classerRues(rues, dernierArbres);
+
+      retirerRues();
+      ruesLayer = L.geoJSON(rues, {
+        pane: "rues",
+        style: f => f.properties.__arbres
+          ? { color: "#2f8f4e", weight: 3, opacity: 0.5 }
+          : { color: "#c23a3a", weight: 3.5, opacity: 0.8 }
+      }).addTo(map);
+
+      const total = (rues.features || []).length;
+      const rouges = (rues.features || []).filter(f => !f.properties.__arbres).length;
+      status.textContent = texteAvant + " " + total.toLocaleString("fr-FR") +
+        " tronçons de rue analysés, dont " + rouges.toLocaleString("fr-FR") +
+        " sans arbre recensé à moins de 18 m de leur axe.";
+    } catch (err) {
+      status.classList.add("error");
+      status.textContent = "Coloration des rues impossible : " + err.message;
+    }
+  }
+
+  async function chargerArrondissement(code) {
+    const status = document.getElementById("status");
+    status.classList.remove("error");
+    const tous = (code === CODE_TOUS);
+    status.textContent = tous
+      ? "Chargement de tous les arbres de Paris… (plusieurs dizaines de Mo, comptez 10 à 30 secondes)"
+      : "Chargement des arbres… (quelques secondes pour les grands arrondissements)";
+    const select = document.getElementById("arrdt-select");
+    select.disabled = true;
+
+    // Filtre optionnel sur la date de plantation.
+    // "les-arbres" ne contient pas de date de plantation exploitable :
+    // quand le filtre est actif, on interroge le jeu des plantations
+    // récentes (couverture : arbres plantés depuis le 1er novembre 2021).
+    const depuis = document.getElementById("date-plantation").value;
+    let dataset = DATASET_ARBRES;
+    let where = tous ? null : 'arrondissement = "' + code + '"';
+    let sPlantes = null;
+
+    if (depuis) {
+      dataset = DATASET_PLANTES;
+      sPlantes = await decouvrirSchemaPlantes().catch(err => { throw err; });
+      if (!sPlantes.date) {
+        throw new Error("champ de date de plantation introuvable dans le jeu " + dataset);
+      }
+      const clauses = ["`" + sPlantes.date + "` >= date'" + depuis + "'"];
+      if (!tous && sPlantes.arrondissement) {
+        const valArrdt = adapterArrdt(code, sPlantes.exempleArrdt);
+        if (valArrdt === null) {
+          status.classList.add("error");
+          status.textContent = "Le jeu des plantations récentes ne couvre pas les bois : " +
+            "choisissez un arrondissement.";
+          select.disabled = false;
+          return;
+        }
+        clauses.push(typeof valArrdt === "number"
+          ? "`" + sPlantes.arrondissement + "` = " + valArrdt
+          : "`" + sPlantes.arrondissement + '` = "' + valArrdt + '"');
+      }
+      where = clauses.join(" AND ");
+    }
+
+    try {
+      const params = new URLSearchParams({ limit: "-1" });
+      if (where) params.set("where", where);
+      if (dataset === DATASET_ARBRES) {
+        // Sur les-arbres, on connaît les champs : on limite le volume téléchargé.
+        params.set("select",
+          "idbase,libellefrancais,genre,espece,hauteurenm,circonferenceencm,adresse,remarquable");
+      }
+      const resp = await fetch(API_ROOT + dataset + "/exports/geojson?" + params.toString());
+      if (!resp.ok) {
+        let detail = "";
+        try { const err = await resp.json(); detail = err.message || err.error || ""; } catch (e) {}
+        throw new Error("Réponse API " + resp.status + (detail ? " — " + detail : ""));
+      }
+      const geojson = await resp.json();
+      if (sPlantes) normaliser(geojson.features || [], sPlantes);
+      const nb = (geojson.features || []).length;
+
+      const filtreTxt = depuis
+        ? " plantés depuis le " + new Date(depuis + "T12:00:00").toLocaleDateString("fr-FR")
+        : "";
+
+      if (nb === 0) {
+        status.classList.add("error");
+        status.textContent = depuis
+          ? "Aucune plantation" + filtreTxt + " recensée dans cette zone. " +
+            "Le jeu des plantations couvre les arbres d'alignement plantés depuis " +
+            "novembre 2021, avec un délai d'intégration parfois long."
+          : "Aucun arbre trouvé pour cette zone.";
+        if (cluster) { map.removeLayer(cluster); cluster = null; }
+        retirerRues();
+        dernierArbres = null;
+        return;
+      }
+      afficherArbres(geojson);
+      majStats(geojson.features);
+      dernierArbres = geojson.features;
+      document.getElementById("stat-total-detail").textContent = depuis
+        ? "plantés depuis le " + new Date(depuis + "T12:00:00").toLocaleDateString("fr-FR")
+        : "affichés sur la carte";
+      document.getElementById("stat-rem").textContent = depuis ? "n/a" :
+        document.getElementById("stat-rem").textContent;
+      status.textContent = nb.toLocaleString("fr-FR") + " arbres" + filtreTxt +
+        " chargés" +
+        (depuis ? " (source : jeu des plantations récentes, couverture depuis nov. 2021)" : "") +
+        ". Zoomez pour éclater les groupes, cliquez sur un point pour le détail.";
+      if (document.getElementById("chk-rues").checked) {
+        majRues();
+      } else {
+        retirerRues();
+      }
+    } catch (err) {
+      status.classList.add("error");
+      status.textContent = "Impossible de charger les données : " + err.message;
+    } finally {
+      select.disabled = false;
+    }
+  }
+
+  // Initialisation du sélecteur
+  const select = document.getElementById("arrdt-select");
+  const optVide = document.createElement("option");
+  optVide.value = ""; optVide.textContent = "— Choisir —";
+  select.appendChild(optVide);
+  for (const [code, libelle] of ARRONDISSEMENTS) {
+    const opt = document.createElement("option");
+    opt.value = code; opt.textContent = libelle;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    if (select.value) chargerArrondissement(select.value);
+  });
+
+  // Filtre par date de plantation
+  const dateInput = document.getElementById("date-plantation");
+  dateInput.max = new Date().toISOString().slice(0, 10);
+  dateInput.min = "2021-11-01"; // début de couverture du jeu des plantations récentes
+  dateInput.addEventListener("change", () => {
+    if (select.value) chargerArrondissement(select.value);
+  });
+  document.getElementById("btn-reset-date").addEventListener("click", () => {
+    dateInput.value = "";
+    if (select.value) chargerArrondissement(select.value);
+  });
+
+  // Coloration des rues
+  const chkRues = document.getElementById("chk-rues");
+  chkRues.addEventListener("change", () => {
+    if (chkRues.checked) majRues();
+    else retirerRues();
+  });
+})();
+</script>
+</body>
+</html>
